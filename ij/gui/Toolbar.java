@@ -1,22 +1,51 @@
 package ij.gui;
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Canvas;
+import java.awt.CheckboxMenuItem;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Event;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Menu;
+import java.awt.MenuBar;
+import java.awt.MenuItem;
+import java.awt.Polygon;
+import java.awt.PopupMenu;
+import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
-import java.awt.event.*;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
 import java.io.File;
-import java.util.Timer;
-import java.util.Hashtable;
-import java.util.TimerTask;
 import java.util.Arrays;
+import java.util.Hashtable;
 import java.util.Locale;
-import ij.*;
-import ij.plugin.frame.*;
-import ij.plugin.MacroInstaller;
-import ij.plugin.RectToolOptions;
-import ij.plugin.tool.PlugInTool;
-import ij.plugin.tool.MacroToolRunner;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import javax.imageio.ImageIO;
+
+import ij.IJ;
+import ij.IJEventListener;
+import ij.ImageJ;
+import ij.ImagePlus;
+import ij.Menus;
+import ij.Prefs;
+import ij.WindowManager;
 import ij.macro.Program;
+import ij.plugin.MacroInstaller;
+import ij.plugin.frame.ColorPicker;
+import ij.plugin.frame.Editor;
+import ij.plugin.frame.Recorder;
+import ij.plugin.tool.MacroToolRunner;
+import ij.plugin.tool.PlugInTool;
 
 /** The ImageJ toolbar. */
 public class Toolbar extends Canvas implements MouseListener, MouseMotionListener, ItemListener, ActionListener {
@@ -161,6 +190,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 		gapSize = GAP_SIZE;
 		ps = new Dimension(buttonWidth*NUM_BUTTONS-(buttonWidth-gapSize), buttonHeight);
+
+		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
 	}
 
 	void addPopupMenus() {
@@ -286,18 +317,27 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		return instance;
 	}
 
+	/*
+	 * <><><><<><>
+	 * MODIFIED CODE
+	 * <><><><><><><>
+	 */
 	private void drawButtons(Graphics g) {
-		if (g==null)
+		if (g == null)
 			return;
-		Graphics2D g2d = (Graphics2D)g;
+		Graphics2D g2d = (Graphics2D) g;
 		g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		setStrokeWidth(g2d);
-		for (int i=0; i<LINE; i++)
-			drawButton(g, i);
-		drawButton(g, lineType);
-		for (int i=POINT; i<getNumTools(); i++)
-			drawButton(g, i);
+		// Only draw RECTANGLE, OVAL, POLYGON, and FREEROI buttons
+		drawButton(g, RECTANGLE);
+		drawButton(g, OVAL);
+		drawButton(g, POLYGON);
+		drawButton(g, FREEROI);
+		
+
+		// Draw the convert to binary button
+		drawButton(g, CUSTOM1);
 	}
 
 	private void setStrokeWidth(Graphics2D g2d) {
@@ -352,7 +392,15 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			drawIcon(g, tool, x+1*scale, y+1*scale);
 			return;
 		}
-		switch (tool) {
+		switch (tool) { // draw the tool icon
+			case CUSTOM1:
+				// currently just copying the 'wand' button code
+				xOffset = x+2; yOffset = y+1;
+				dot(4,0);  m(2,0); d(3,1); d(4,2);  m(0,0); d(1,1);
+				m(0,2); d(1,3); d(2,4);  dot(0,4); m(3,3); d(15,15);
+				g.setColor(Roi.getColor());
+				m(1,2); d(3,2); m(2,1); d(2,3);
+				return;
 			case RECTANGLE:
 				xOffset = x; yOffset = y;
 				if (rectType==ROUNDED_RECT_ROI)
@@ -371,7 +419,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				} else if (ovalType==ELLIPSE_ROI) {
 					xOffset = x - 1;
 					yOffset = y + 1;
-					polyline(11,0,13,0,14,1,15,1,16,2,17,3,17,7,12,12,11,12,10,13,8,13,7,14,4,14,3,13,2,13,1,12,1,11,0,10,0,9,1,8,1,7,6,2,7,2,8,1,10,1,11,0);
+					polyline(11,0,13,0,14,1,15,1,16,2,17,3,17,7,12,12,11,12,10,13,8,13,7,14,4,14,3,13,2,13,1,12,1,11,0,10,0,9,1,8,1,7,2,7,2,8,1,10,1,11,0);
 				} else
 					g.drawOval(x, y+1*scale, 17*scale, 13*scale);
 				drawTriangle(16,16);
