@@ -1,5 +1,5 @@
-javac ij\ImageJ.java
-javac ij\plugin\*.java
-javac ij\plugin\filter\*.java
-javac ij\plugin\frame\*.java
+javac -Xlint:none ij\ImageJ.java
+javac -Xlint:none ij\plugin\*.java
+javac -Xlint:none ij\plugin\filter\*.java
+javac -Xlint:none ij\plugin\frame\*.java
 java ij.ImageJ

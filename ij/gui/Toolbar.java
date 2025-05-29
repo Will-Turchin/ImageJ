@@ -1,5 +1,6 @@
 package ij.gui;
 import java.awt.BasicStroke;
+import java.awt.Button;
 import java.awt.Canvas;
 import java.awt.CheckboxMenuItem;
 import java.awt.Color;
@@ -190,8 +191,6 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 		gapSize = GAP_SIZE;
 		ps = new Dimension(buttonWidth*NUM_BUTTONS-(buttonWidth-gapSize), buttonHeight);
-
-		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
 	}
 
 	void addPopupMenus() {
@@ -337,6 +336,9 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		
 
 		// Draw the convert to binary button
+		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
+		menus[CUSTOM1] = new PopupMenu();
+		names[CUSTOM1] = "Convert to Binary";
 		drawButton(g, CUSTOM1);
 	}
 
@@ -678,6 +680,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		String hint = " (alt or long click to switch)";
 		String hint2 = " (alt or long click to switch; double click to configure)";
 		switch (tool) {
+			case CUSTOM1:
+				IJ.showStatus("Convert to Binary Mask");
 			case RECTANGLE:
 				if (rectType==ROUNDED_RECT_ROI)
 					IJ.showStatus("Rectangle, *rounded rect* or rotated rect"+hint);
@@ -1202,6 +1206,9 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			setTool2(newTool);
 		int x = e.getX();
 		int y = e.getY();
+		if (current==CUSTOM1 && isRightClick) {
+			System.out.println("CLICKED!");
+		}
 		if (current==RECTANGLE && isRightClick) {	
 			rectItem.setState(rectType==RECT_ROI);	
 			roundRectItem.setState(rectType==ROUNDED_RECT_ROI);	
@@ -1257,6 +1264,12 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		if (inGap(x))
 			return;
  		final int newTool = toolID(x);
+		if(newTool==CUSTOM1 && !e.isPopupTrigger()){ //intended to check if CUSTOM1 is working
+			System.out.println("CUSTOM BUTTON PRESSED");
+			IJ.run("Create Mask");
+			//System.exit(0);
+			return;
+		}
 		if (newTool==getNumTools()-1) {
 			showSwitchPopupMenu(e);
 			return;
@@ -1286,6 +1299,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			}
 			ImagePlus imp = WindowManager.getCurrentImage();
 			switch (current) {
+				case CUSTOM1: //this method is never reached
+					break;
 				case RECTANGLE:
 					if (rectType==ROUNDED_RECT_ROI)
 						IJ.doCommand("Rounded Rect Tool...");

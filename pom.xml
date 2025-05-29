@@ -195,7 +195,7 @@
 					</links>
 					<sourceFileIncludes>ij/**/*.java</sourceFileIncludes>
 				</configuration>
-			</plugin>
+			</plugin>			
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
 				<configuration>
@@ -256,6 +256,11 @@
 					<snapshots>
 						<enabled>false</enabled>
 					</snapshots>
+				</repository>
+				<repository>
+					<id>central</id>
+					<name>Maven Central Repository</name>
+					<url>https://repo.maven.apache.org/maven2</url>
 				</repository>
 			</repositories>
 			<distributionManagement>
