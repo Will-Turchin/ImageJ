@@ -2,24 +2,25 @@
 setlocal
 
 REM ─── Configuration ─────────────────────────────────────────────────────────
-set OUT_DIR=out
-set FAT_JAR=ImageJ-modified.jar
-set MAIN_CLASS=ij.ImageJ
+set "OUT_DIR=out"
+set "TMP_DIR=tmp"
+set "IJ_CORE_JAR=ij.jar"
+set "FAT_JAR=ImageJ-modified.jar"
+set "MAIN_CLASS=ij.ImageJ"
 
-REM ─── 1) Clean and recreate out directory ─────────────────────────────────
-if exist %OUT_DIR% rd /s /q %OUT_DIR%
-mkdir %OUT_DIR%
+REM ─── 1) Clean out & tmp dirs ──────────────────────────────────────────────
+if exist "%OUT_DIR%" rd /s /q "%OUT_DIR%"
+if exist "%TMP_DIR%" rd /s /q "%TMP_DIR%"
+mkdir "%OUT_DIR%" "%TMP_DIR%"
 
-REM ─── 2) Compile core + gui + plugin sources into out ────────────────────
-echo Recursively compiling every .java under ij\ into %OUT_DIR%\...
-for /R ij %%F in (*.java) do (
-  javac -Xlint:none -d %OUT_DIR% "%%F" || (
-    echo.
-    echo *** Compilation failed at %%F
-    exit /b 1
-  )
-)
-if errorlevel 1 (
+REM ─── 2) Compile your modified core + GUI + plugins in one javac call ─────
+echo Compiling modified core + GUI + plugin sources...
+javac -Xlint:none -d "%OUT_DIR%" ^
+    ij\*.java ^
+    ij\gui\*.java ^
+    ij\plugin\*.java ^
+    ij\plugin\filter\*.java ^
+    ij\plugin\frame\*.java || (
   echo.
   echo *** Compilation failed
   pause
@@ -32,20 +33,32 @@ REM ─── 3) Write manifest.txt ──────────────�
   echo.
 ) > manifest.txt
 
-REM ─── 4) Package everything into the fat JAR ──────────────────────────────
-echo Packaging all classes into %FAT_JAR%...
-jar cfm %FAT_JAR% manifest.txt -C %OUT_DIR% .
-if errorlevel 1 (
+REM ─── 4) Unpack full ImageJ core (classes + resources) ────────────────────
+echo Unpacking "%IJ_CORE_JAR%" into "%TMP_DIR%"\...
+pushd "%TMP_DIR%"
+  jar xf "..\%IJ_CORE_JAR%"
+popd
+
+REM ─── 5) Overlay your newly compiled classes ───────────────────────────────
+echo Overlaying modified classes...
+xcopy /Y /E "%OUT_DIR%\*" "%TMP_DIR%\" >nul
+
+REM ─── 6) Package everything into the fat JAR ──────────────────────────────
+echo Packaging "%FAT_JAR%" with resources and classes...
+jar cfm "%FAT_JAR%" manifest.txt -C "%TMP_DIR%" . || (
   echo.
-  echo *** Failed to build %FAT_JAR%
+  echo *** Failed to build "%FAT_JAR%"
   pause
   exit /b 1
 )
 
+REM ─── 7) Cleanup temporary folder ────────────────────────────────────────
+rd /s /q "%TMP_DIR%"
+
 echo.
 echo Build complete!
-echo Run it with:
-echo     java -jar %FAT_JAR%
+echo You can now double-click or run:
+echo     java -jar "%FAT_JAR%"
 pause
 
 endlocal
