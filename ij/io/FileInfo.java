@@ -126,10 +126,10 @@ public class FileInfo implements Cloneable {
 	public VirtualStack virtualStack;
 	public int sliceNumber; // used by FileInfoVirtualStack
 	
-	public double pixelWidth=1.0;
-	public double pixelHeight=1.0;
-	public double pixelDepth=1.0;
-	public String unit;
+	public double pixelWidth = 1.0 / 1440.0;
+	public double pixelHeight = 1.0 / 1440.0;
+	public double pixelDepth;
+	public String unit = "inch";
 	public int calibrationFunction;
 	public double[] coefficients;
 	public String valueUnit;

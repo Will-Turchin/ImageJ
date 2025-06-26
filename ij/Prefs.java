@@ -213,7 +213,7 @@ public class Prefs {
 	static int threads;
 	static int transparentIndex = -1;
 	private static boolean resetPreferences;
-	private static double guiScale = 1.0;
+	private static double guiScale = 3.0;
 	private static Properties locKeys = new Properties();
 	private static String propertiesPath; // location of custom IJ_Props.txt
 	private static String preferencesPath; // location of custom IJ_Prefs.txt

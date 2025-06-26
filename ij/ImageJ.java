@@ -728,6 +728,10 @@ public class ImageJ extends Frame implements ActionListener,
 		arguments = args;
 		int nArgs = args!=null?args.length:0;
 		boolean commandLine = false;
+
+		//Prefs.setGuiScale(1);             // pick any GUI scale you want
+		//Prefs.savePreferences();		
+
 		for (int i=0; i<nArgs; i++) {
 			String arg = args[i];
 			if (arg==null) continue;
@@ -760,7 +764,14 @@ public class ImageJ extends Frame implements ActionListener,
   			return;
  		ImageJ ij = IJ.getInstance();    	
 		if (!noGUI && (ij==null || (ij!=null && !ij.isShowing()))) {
-			ij = new ImageJ(null, mode);
+			ij = new ImageJ(null, mode); // Makes the ImageJ instance
+			//Prefs.setGuiScale(2);             // pick any GUI scale you want
+			//Prefs.savePreferences();
+        	Toolbar tb = Toolbar.getInstance();   // now it’s non-null
+        	if (tb != null) {
+            	tb.init();                        // recompute button sizes
+            	tb.repaint();                     // redraw toolbar
+        	}
 			ij.exitWhenQuitting = true;
 		} else if (batchMode && noGUI)
 			Prefs.load(null, null);

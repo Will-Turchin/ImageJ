@@ -88,6 +88,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private static final int MAX_EXTRA_TOOLS = 8;
 	private static final int MAX_TOOLS = NUM_TOOLS+MAX_EXTRA_TOOLS;
 	private static final int NUM_BUTTONS = 21;
+	// private static final int VISIBLE_BUTTONS = 5; //change if you add more
 	private static final int BUTTON_WIDTH = 30;
 	private static final int BUTTON_HEIGHT = 31;
 	private static final int SIZE = 28;  // no longer used
@@ -141,8 +142,9 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private static int arcSize = (int)Prefs.get(CORNER_DIAMETER, 20);
 	private int lineType = LINE;
 	private static boolean legacyMode;
-	private static double dscale = 1.0;
-	private static int scale = 1;
+	private static int dscale = 2;
+	private static int scale = 2;
+	private static final int TOOLBAR_SCALE = 2; 
 	private static int buttonWidth;
 	private static int buttonHeight;
 	private static int gapSize;
@@ -176,21 +178,26 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	}
 	
 	public void init() {
-		dscale = Prefs.getGuiScale();
-		scale = (int)Math.round(dscale);
-		if ((dscale>=1.5&&dscale<2.0) || (dscale>=2.5&&dscale<3.0))
-			dscale = scale;
-		if (dscale>1.0) {
-			buttonWidth = (int)((BUTTON_WIDTH-2)*dscale);
-			buttonHeight = (int)((BUTTON_HEIGHT-2)*dscale);
-			offset = (int)Math.round((OFFSET-1)*dscale);
-		} else {
-			buttonWidth = BUTTON_WIDTH;
-			buttonHeight = BUTTON_HEIGHT;
-			offset = OFFSET;
-		}
-		gapSize = GAP_SIZE;
-		ps = new Dimension(buttonWidth*NUM_BUTTONS-(buttonWidth-gapSize), buttonHeight);
+		// --- unified GUI-scale math ---
+    	dscale = TOOLBAR_SCALE;      // raw double (e.g. 1.25)
+    	scale  = TOOLBAR_SCALE;  // integer scale for icons and math
+
+    	if (scale > 1) {
+        	buttonWidth  = (BUTTON_WIDTH  - 2) * scale;
+        	buttonHeight = (BUTTON_HEIGHT - 2) * scale;
+        	offset       = (OFFSET        - 1) * scale;
+        	gapSize      =  GAP_SIZE             * scale;
+    	} else {                          // native 1×
+        	buttonWidth  = BUTTON_WIDTH;
+        	buttonHeight = BUTTON_HEIGHT;
+        	offset       = OFFSET;
+        	gapSize      = GAP_SIZE;
+    	}
+
+    	// preferred size of the toolbar canvas
+    	ps = new Dimension(
+    	        buttonWidth * 15 - (buttonWidth - gapSize), // Used to be "butonWidth - NUMBUTTONS..." but changed to just fit the 5
+        	    buttonHeight);
 	}
 
 	void addPopupMenus() {
@@ -328,18 +335,23 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		setStrokeWidth(g2d);
-		// Only draw RECTANGLE, OVAL, POLYGON, and FREEROI buttons
+		// Only draw RECTANGLE, OVAL, POLYGON, FREEROI, HAND, & WAND buttons
 		drawButton(g, RECTANGLE);
 		drawButton(g, OVAL);
 		drawButton(g, POLYGON);
 		drawButton(g, FREEROI);
-		
+		drawButton(g, HAND);
+		drawButton(g, MAGNIFIER);
 
 		// Draw the convert to binary button
 		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
 		menus[CUSTOM1] = new PopupMenu();
 		names[CUSTOM1] = "Convert to Binary";
 		drawButton(g, CUSTOM1);
+		icons[CUSTOM2] = null; //Lines should make sure icon isn't overriden
+		menus[CUSTOM2] = new PopupMenu();
+		names[CUSTOM2] = "Crop Image";
+		drawButton(g, CUSTOM2);
 	}
 
 	private void setStrokeWidth(Graphics2D g2d) {
@@ -358,7 +370,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			g.setColor(darker);
 		g.fillRect(x+1, y+1, width-2, height-2);
 		g.setColor(raised ? brighter : evenDarker);
-		g.drawLine(x, y, x, y + height - 1);
+		g.drawLine(x, y, x, y + height - 1 * scale);
 		g.drawLine(x + 1, y, x + width - 2, y);
 		g.setColor(raised ? evenDarker : brighter);
 		g.drawLine(x + 1, y + height - 1, x + width - 1, y + height - 1);
@@ -378,13 +390,13 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
         int index = toolIndex(tool);
         int x = index*buttonWidth + 1*scale;
         if (tool>=CUSTOM1)
-        	x -= buttonWidth-gapSize;
+        	x -= buttonWidth;//-gapSize;
         if (tool!=UNUSED)
         	fill3DRect(g, x, 1, buttonWidth, buttonHeight-1, !down[tool]);
         g.setColor(toolColor);
         x = index*buttonWidth + offset;
         if (tool>=CUSTOM1)
-        	x -= buttonWidth-gapSize;
+        	x -= buttonWidth;//-gapSize;
 		int y = offset;
 		if (dscale==1.3) {x++; y++;}
 		if (dscale==1.4) {x+=2; y+=2;}
@@ -396,12 +408,20 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 		switch (tool) { // draw the tool icon
 			case CUSTOM1:
-				// currently just copying the 'wand' button code
-				xOffset = x+2; yOffset = y+1;
+				xOffset = x + 2 * scale; yOffset = y + 1 * scale;
 				dot(4,0);  m(2,0); d(3,1); d(4,2);  m(0,0); d(1,1);
 				m(0,2); d(1,3); d(2,4);  dot(0,4); m(3,3); d(15,15);
 				g.setColor(Roi.getColor());
 				m(1,2); d(3,2); m(2,1); d(2,3);
+				return;
+			case CUSTOM2:
+				xOffset = x; yOffset = y;
+				m(0,0); d(2, 0); m(5,0); d(8, 0); m(11,0); d(14, 0); m(17,0); d(18, 0);
+				m(18, 0); d(18, 1); m(18, 4); d(18, 7); m(18, 10); d(18, 13);
+				m(15, 13); d(12, 13); m(9, 13); d(6, 13); m(3, 13); d(0, 13);
+				m(0,10); d(0, 7); m(0,4); d(0, 1);
+				g.setColor(Roi.getColor());
+				//g.drawRect(x-1*scale, y+1*scale, 17*scale, 13*scale);
 				return;
 			case RECTANGLE:
 				xOffset = x; yOffset = y;
@@ -612,9 +632,12 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 					case 'T': // text (one character)
 						x2 = x+v()-2;
 						y2 = y+v();
-						int size = v()*10+v()+1;
+						
 						char[] c = new char[1];
 						c[0] = pc<icon.length()?icon.charAt(pc++):'e';
+						int raw = v()*10 + v() + 1;                          // original point size
+						int size = (int)Math.round(raw * scale);
+						if (size < 7) size = 7;                               // keep it readable
 						g.setFont(new Font("SansSerif", Font.PLAIN, size));
 						g.drawString(new String(c), x2, y2);
 						break;
@@ -682,6 +705,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		switch (tool) {
 			case CUSTOM1:
 				IJ.showStatus("Convert to Binary Mask");
+			case CUSTOM2:
+				IJ.showStatus("Crop Image");
 			case RECTANGLE:
 				if (rectType==ROUNDED_RECT_ROI)
 					IJ.showStatus("Rectangle, *rounded rect* or rotated rect"+hint);
@@ -1164,21 +1189,23 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			case 1: return OVAL;
 			case 2: return POLYGON;
 			case 3: return FREEROI;
-			case 4: return lineType;
-			case 5: return ANGLE;
-			case 6: return POINT;
-			case 7: return WAND;
-			case 8: return TEXT;
+			//case 4: return lineType;
+			//case 5: return ANGLE;
+			//case 6: return POINT;
+			//case 7: return WAND;
+			//case 8: return TEXT;
 			case 9: return MAGNIFIER;
 			case 10: return HAND;
-			case 11: return DROPPER;
-			default: return index + 3;
+			//case 11: return DROPPER;
+			case 12: return CUSTOM1;
+			case 13: return CUSTOM2;
+			default: return -1;
 		}
     }
     
 	private boolean inGap(int x) {
-		return x>=(buttonWidth*12) && x<(buttonWidth*12+gapSize);
- 	}
+		return false; //used to detect legacy 12-button gap, not needed anymore so just replaced
+  	}
 
 	public void triggerPopupMenu(int newTool, MouseEvent e, boolean isRightClick, boolean isLongPress) {
 		mpPrevious = current;
@@ -1264,10 +1291,29 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		if (inGap(x))
 			return;
  		final int newTool = toolID(x);
-		if(newTool==CUSTOM1 && !e.isPopupTrigger()){ //intended to check if CUSTOM1 is working
-			System.out.println("CUSTOM BUTTON PRESSED");
+		if(newTool==-1){ //click fell outside visible buttons
+			return;
+		}
+		if(newTool==CUSTOM1 && !e.isPopupTrigger()){ //creates a binary mask and sets the scale of the image
+			// Get the name of the image
+			ImagePlus origin = IJ.getImage();
+			String originTitle = origin.getTitle();
+			int endOfTitle = originTitle.indexOf('.');
+			originTitle = originTitle.substring(0, endOfTitle);
+			// Create the mask
 			IJ.run("Create Mask");
-			//System.exit(0);
+			// Set the DPI on the current image to 1440
+			IJ.run("Set Scale...", "distance=1440 known=1 unit=inches");
+			
+			ImagePlus mask = IJ.getImage();
+			mask.setTitle(originTitle + "_Mask.jpg");
+			
+			
+			return;
+		}
+		if(newTool==CUSTOM2 && !e.isPopupTrigger()){
+			IJ.run("Crop");
+
 			return;
 		}
 		if (newTool==getNumTools()-1) {
