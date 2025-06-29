@@ -80,7 +80,7 @@ public class ImageJ extends Frame implements ActionListener,
 	/** Plugins should call IJ.getVersion() or IJ.getFullVersion() to get the version string. */
 	public static final String VERSION = "1.54p";
 	public static final String BUILD = "";
-	public static Color backgroundColor = new Color(237,237,237);
+	public static Color backgroundColor = new Color(200,200,200);
 	/** SansSerif, 12-point, plain font. */
 	public static final Font SansSerif12 = new Font("SansSerif", Font.PLAIN, 12);
 	/** SansSerif, 14-point, plain font. */
@@ -106,7 +106,7 @@ public class ImageJ extends Frame implements ActionListener,
 	private static final String IJ_X="ij.x",IJ_Y="ij.y";
 	private static int port = DEFAULT_PORT;
 	private static String[] arguments;
-	
+
 	private Toolbar toolbar;
 	private Panel statusBar;
 	private ProgressBar progressBar;
@@ -145,7 +145,8 @@ public class ImageJ extends Frame implements ActionListener,
 		If  'mode' is ImageJ.EMBEDDED and 'applet is null, creates an embedded 
 		(non-standalone) version of ImageJ. */
 	public ImageJ(java.applet.Applet applet, int mode) {
-		super("ImageJ");
+		super("RavenJ");
+		
 		if ((mode&DEBUG)!=0)
 			IJ.setDebugMode(true);
 		mode = mode & 255;
@@ -287,7 +288,7 @@ public class ImageJ extends Frame implements ActionListener,
 	}
 	
     void setIcon() throws Exception {
-		URL url = this.getClass().getResource("/microscope.gif");
+		URL url = this.getClass().getResource("/images/microscope.gif");
 		if (url==null) return;
 		Image img = createImage((ImageProducer)url.getContent());
 		if (img!=null) setIconImage(img);

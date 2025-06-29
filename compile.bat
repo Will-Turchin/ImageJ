@@ -1,6 +1,9 @@
 @echo off
 set CP=.;ij.jar
 
+rem -- add the current directory, ij.jar, and ij/images onto the CP
+set CP=.;ij.jar;ij\images
+
 rem -- re-compile the parts of ImageJ you modified ------------
 javac -Xlint:none -cp "%CP%" ij\ImageJ.java
 javac -Xlint:none -cp "%CP%" ij\plugin\*.java
