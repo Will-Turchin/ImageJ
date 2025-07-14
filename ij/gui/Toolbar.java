@@ -41,12 +41,15 @@ import ij.Menus;
 import ij.Prefs;
 import ij.WindowManager;
 import ij.macro.Program;
+import ij.measure.Calibration;
 import ij.plugin.MacroInstaller;
 import ij.plugin.frame.ColorPicker;
 import ij.plugin.frame.Editor;
 import ij.plugin.frame.Recorder;
 import ij.plugin.tool.MacroToolRunner;
 import ij.plugin.tool.PlugInTool;
+import ij.process.ColorProcessor;
+import ij.process.ImageProcessor;
 
 /** The ImageJ toolbar. */
 public class Toolbar extends Canvas implements MouseListener, MouseMotionListener, ItemListener, ActionListener {
@@ -156,6 +159,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private Color evenDarker = new Color(110, 110, 110);
 	private Color triangleColor = new Color(150, 0, 0);
 	private Color toolColor = new Color(0, 25, 45);
+
+	private static final int IMAGE_DPI = 3200;
 	
 	/** Obsolete public constants */
 	public static final int SPARE1=UNUSED, SPARE2=CUSTOM1, SPARE3=CUSTOM2, SPARE4=CUSTOM3, 
@@ -1181,8 +1186,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 
 	// Returns the tool corresponding to the specified x coordinate
 	private int toolID(int x) {
-		if (x>buttonWidth*12+gapSize)
-			x -= gapSize;
+		/*if (x>buttonWidth*12+gapSize)
+			x -= gapSize;*/
 		int index = x/buttonWidth;
     	switch (index) {
 			case 0: return RECTANGLE;
@@ -1302,12 +1307,13 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			originTitle = originTitle.substring(0, endOfTitle);
 			// Create the mask
 			IJ.run("Create Mask");
-			// Set the DPI on the current image to 1440
-			IJ.run("Set Scale...", "distance=1440 known=1 unit=inches");
+			// Set the DPI on the current image
+			IJ.run("Set Scale...", "distance="+IMAGE_DPI+" known=1 unit=inches");
 			
 			ImagePlus mask = IJ.getImage();
 			mask.setTitle(originTitle + "_Mask.jpg");
 			
+			makeMaskMargin(mask);
 			
 			return;
 		}
@@ -1406,6 +1412,28 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		
 	}
 	
+	private void makeMaskMargin(ImagePlus img) {
+		Calibration cal = img.getCalibration();
+		double inPerPixel = cal.pixelWidth;
+		double mmPerPixel = 25.4 * inPerPixel;
+		int px_border = (int)Math.round(0.5 / mmPerPixel); // border is .5 mm (500 microns)
+		int bottom_border = (int)Math.round(24.5 / mmPerPixel);
+
+		int w = img.getWidth();
+		int h = img.getHeight();
+
+		IJ.run(img, "8-bit", ""); // convert to black & white
+		ImageProcessor ip = img.getProcessor();
+		ip.setColor(255); // black
+		
+		// paint four rectangles
+		ip.fillRect(0, 0, w, px_border); //top
+		ip.fillRect(0, 0, px_border, h); //left
+		ip.fillRect(w - px_border, 0, px_border, h);
+		ip.fillRect(0, h - bottom_border, w, bottom_border);
+		img.updateAndDraw();
+
+	}
 	public void mouseReleased(MouseEvent e) {
 		if (pressTimer!=null) {
 			pressTimer.cancel();

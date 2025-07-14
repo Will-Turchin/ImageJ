@@ -5,7 +5,7 @@ REM ─── Configuration ─────────────────�
 set "OUT_DIR=out"
 set "TMP_DIR=tmp"
 set "IJ_CORE_JAR=ij.jar"
-set "FAT_JAR=ImageJ-modified.jar"
+set "FAT_JAR=RavenJ.jar"
 set "MAIN_CLASS=ij.ImageJ"
 
 REM ─── 1) Clean out & tmp dirs ──────────────────────────────────────────────
