@@ -1,10 +1,13 @@
 package ij.gui;
+import java.awt.AWTEvent;
 import java.awt.BasicStroke;
 import java.awt.Button;
 import java.awt.Canvas;
 import java.awt.CheckboxMenuItem;
 import java.awt.Color;
 import java.awt.Dimension;
+import ij.gui.DialogListener;
+import ij.gui.GenericDialog;
 import java.awt.Event;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -12,6 +15,7 @@ import java.awt.Graphics2D;
 import java.awt.Menu;
 import java.awt.MenuBar;
 import java.awt.MenuItem;
+import java.awt.Panel;
 import java.awt.Polygon;
 import java.awt.PopupMenu;
 import java.awt.RenderingHints;
@@ -79,6 +83,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	
 	public static final int DOUBLE_CLICK_THRESHOLD = 650; //ms
 
+	public static final int CROP_ROI=0, CROP_CHANGE_DIM=1;
 	public static final int RECT_ROI=0, ROUNDED_RECT_ROI=1, ROTATED_RECT_ROI=2;
 	public static final int OVAL_ROI=0, ELLIPSE_ROI=1, BRUSH_ROI=2;
 	
@@ -123,7 +128,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private int pc;
 	private String icon;
 	private int startupTime;
-	private PopupMenu rectPopup, ovalPopup, pointPopup, linePopup, zoomPopup, pickerPopup, switchPopup;
+	private PopupMenu cropPopup, rectPopup, ovalPopup, pointPopup, linePopup, zoomPopup, pickerPopup, switchPopup;
+	private CheckboxMenuItem cropItem, changeDimItem;
 	private CheckboxMenuItem rectItem, roundRectItem, rotatedRectItem;
 	private CheckboxMenuItem ovalItem, ellipseItem, brushItem;
 	private CheckboxMenuItem pointItem, multiPointItem;
@@ -137,6 +143,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private static Color backgroundColor = Prefs.getColor(Prefs.BCOLOR,Color.black);
 	private static double foregroundValue = Double.NaN;
 	private static double backgroundValue = Double.NaN;
+	private static int cropType = CROP_ROI;
 	private static int ovalType = OVAL_ROI;
 	private static int rectType = RECT_ROI;
 	private static boolean multiPointMode = Prefs.multiPointMode;
@@ -160,7 +167,13 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private Color triangleColor = new Color(150, 0, 0);
 	private Color toolColor = new Color(0, 25, 45);
 
-	private static final int IMAGE_DPI = 3200;
+	private static double slideWidth = 25.0;
+	private static double slideLength = 75.0;
+	private static double slideWorkingWidth = 24.0;
+	private static double slideWorkingLength = 50;
+	private static int slideDPI = 800;
+	private static final String[] ORIENTATION_CHOICES = {"0", "90", "180", "270"};
+	private static String slideOrientation = ORIENTATION_CHOICES[0];
 	
 	/** Obsolete public constants */
 	public static final int SPARE1=UNUSED, SPARE2=CUSTOM1, SPARE3=CUSTOM2, SPARE4=CUSTOM3, 
@@ -206,6 +219,17 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	}
 
 	void addPopupMenus() {
+		//adding popup menu to (hopefully) be able to set crop dimensions
+		cropPopup = newPopupMenu();
+		cropItem = new CheckboxMenuItem("Crop Image", cropType==CROP_ROI);
+		cropItem.addItemListener(this);
+		cropPopup.add(cropItem);
+		changeDimItem = new CheckboxMenuItem("Change Crop Dimensions", cropType==CROP_CHANGE_DIM);
+		changeDimItem.addItemListener(this);
+		cropPopup.add(changeDimItem);
+		menus[CUSTOM1] = cropPopup; //tie popup to the tool
+		add(cropPopup);
+
 		rectPopup = newPopupMenu();
 		rectItem = new CheckboxMenuItem("Rectangle", rectType==RECT_ROI);
 		rectItem.addItemListener(this);
@@ -350,11 +374,11 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 
 		// Draw the convert to binary button
 		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
-		menus[CUSTOM1] = new PopupMenu();
+		
 		names[CUSTOM1] = "Convert to Binary";
 		drawButton(g, CUSTOM1);
 		icons[CUSTOM2] = null; //Lines should make sure icon isn't overriden
-		menus[CUSTOM2] = new PopupMenu();
+		
 		names[CUSTOM2] = "Crop Image";
 		drawButton(g, CUSTOM2);
 	}
@@ -393,15 +417,15 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				return;
 		}
         int index = toolIndex(tool);
-        int x = index*buttonWidth + 1*scale;
+        int x = index*buttonWidth + scale;
         if (tool>=CUSTOM1)
-        	x -= buttonWidth;//-gapSize;
+        	x += gapSize;
         if (tool!=UNUSED)
         	fill3DRect(g, x, 1, buttonWidth, buttonHeight-1, !down[tool]);
         g.setColor(toolColor);
         x = index*buttonWidth + offset;
         if (tool>=CUSTOM1)
-        	x -= buttonWidth;//-gapSize;
+        	x += gapSize;//-gapSize;
 		int y = offset;
 		if (dscale==1.3) {x++; y++;}
 		if (dscale==1.4) {x+=2; y+=2;}
@@ -414,10 +438,16 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		switch (tool) { // draw the tool icon
 			case CUSTOM1:
 				xOffset = x + 2 * scale; yOffset = y + 1 * scale;
-				dot(4,0);  m(2,0); d(3,1); d(4,2);  m(0,0); d(1,1);
-				m(0,2); d(1,3); d(2,4);  dot(0,4); m(3,3); d(15,15);
-				g.setColor(Roi.getColor());
-				m(1,2); d(3,2); m(2,1); d(2,3);
+				if (cropType == CROP_ROI){
+					dot(4,0);  m(2,0); d(3,1); d(4,2);  m(0,0); d(1,1);
+					m(0,2); d(1,3); d(2,4);  dot(0,4); m(3,3); d(15,15);
+					g.setColor(Roi.getColor());
+					m(1,2); d(3,2); m(2,1); d(2,3);
+				} else if (cropType == CROP_CHANGE_DIM){
+					g.drawRoundRect(x-1*scale, y+1*scale, 17*scale, 13*scale, 8*scale, 8*scale);
+				}
+
+				drawTriangle(16, 16);
 				return;
 			case CUSTOM2:
 				xOffset = x; yOffset = y;
@@ -426,6 +456,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				m(15, 13); d(12, 13); m(9, 13); d(6, 13); m(3, 13); d(0, 13);
 				m(0,10); d(0, 7); m(0,4); d(0, 1);
 				g.setColor(Roi.getColor());
+				//drawTriangle(16, 16);
 				//g.drawRect(x-1*scale, y+1*scale, 17*scale, 13*scale);
 				return;
 			case RECTANGLE:
@@ -1177,17 +1208,18 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			case TEXT: return 8;
 			case MAGNIFIER: return 9;
 			case HAND: return 10;
-			case DROPPER: return 11;
+			//case DROPPER: return 11;
 			case ANGLE: return 5;
-			case UNUSED: return 12;
+			case CUSTOM1 : return 12;
+			case CUSTOM2 : return 13;
 			default: return tool - 2;
 		}
     }
 
 	// Returns the tool corresponding to the specified x coordinate
 	private int toolID(int x) {
-		/*if (x>buttonWidth*12+gapSize)
-			x -= gapSize;*/
+		if (x>buttonWidth*12+gapSize)
+			x -= gapSize;
 		int index = x/buttonWidth;
     	switch (index) {
 			case 0: return RECTANGLE;
@@ -1239,8 +1271,12 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		int x = e.getX();
 		int y = e.getY();
 		if (current==CUSTOM1 && isRightClick) {
-			System.out.println("CLICKED!");
-		}
+			cropItem.setState(cropType==CROP_ROI);
+			changeDimItem.setState(cropType==CROP_CHANGE_DIM);
+			if (IJ.isMacOSX()) IJ.wait(10);
+			cropPopup.show(e.getComponent(), x, y);
+			mouseDownTime = 0L;
+		}	
 		if (current==RECTANGLE && isRightClick) {	
 			rectItem.setState(rectType==RECT_ROI);	
 			roundRectItem.setState(rectType==ROUNDED_RECT_ROI);	
@@ -1277,10 +1313,10 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			zoomPopup.show(e.getComponent(),x,y);	
 			mouseDownTime = 0L;	
 		}				
-		if (current==DROPPER && isRightClick) {	
+		/*if (current==DROPPER && isRightClick) {	
 			pickerPopup.show(e.getComponent(),x,y);	
 			mouseDownTime = 0L;	
-		}	
+		}*/	
 		if (isMacroTool(current) && isRightClick) {	
 			String name = names[current].endsWith(" ")?names[current]:names[current]+" ";	
 			tools[current].runMacroTool(name+"Options");	
@@ -1290,6 +1326,104 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 	}
 
+	private void cropROI(){
+		// Get the name of the image
+		ImagePlus origin = IJ.getImage();
+		String originTitle = origin.getTitle();
+		int endOfTitle = originTitle.indexOf('.');
+		originTitle = originTitle.substring(0, endOfTitle);
+		// Create the mask
+		IJ.run("Create Mask");
+		// Set the DPI on the current image
+		IJ.run("Set Scale...", "distance="+slideDPI+" known=1 unit=inches");
+		
+		ImagePlus mask = IJ.getImage();
+		mask.setTitle(originTitle + "_Mask.jpg");
+		
+		makeMaskMargin(mask);
+		return;
+	}
+
+	class PreviewPanel extends Panel {
+		int x = 75*3 - 20;
+		int y = 25*3 - 20;
+		int w, l, crop_w, crop_l;
+		String orientation;
+
+		PreviewPanel(int w, int l, int crop_w, int crop_l, String orientation) {
+			this.w = w;
+			this.l = l;
+			this.crop_w = crop_w;
+			this.crop_l = crop_l;
+			this.orientation = orientation;
+			if(crop_w>w) crop_w=w;
+
+			crop_w = ((crop_w)/(w)*x);
+		}
+
+		@Override
+		public Dimension getPreferredSize() {
+			return new Dimension(x+20, y+20);
+		}
+
+		@Override
+		public void paint(Graphics g) {
+			g.setColor(java.awt.Color.WHITE);
+			g.fillRect(0, 0, x+20, y+20);
+			g.setColor(java.awt.Color.BLACK);
+			g.drawRect(10, 10, x, y);
+
+			if ("0".equals(orientation)) {
+				g.fillRect(10+x, 10, x-crop_w, y);
+				g.setColor(java.awt.Color.BLUE);
+				g.fillOval(5, 5, 10, 10);
+			} else if ("90".equals(orientation)) {
+
+				g.setColor(java.awt.Color.BLUE);
+				g.fillOval(x+5, 5, 10, 10);
+			} else if ("180".equals(orientation)) {
+
+				g.setColor(java.awt.Color.BLUE);
+				g.fillOval(5, y+5, 10, 10);
+			} else if ("270".equals(orientation)) {
+
+				g.setColor(java.awt.Color.BLUE);
+				g.fillOval(x+5, y+5, 10, 10);
+			}
+		}
+	}
+	private void editMaskParameters(){
+	    GenericDialog gd = new GenericDialog("Mask Parameters");
+		
+		gd.addNumericField("Slide Width", slideWidth, 2);
+		gd.addNumericField("Slide Length", slideLength, 2);
+		gd.addNumericField("Slide DPI", slideDPI, 0);
+		gd.addNumericField("Working Area Width", slideWorkingWidth, 2);
+		gd.addNumericField("Working Area Length", slideWorkingLength, 2);
+		gd.addChoice("Orientation", ORIENTATION_CHOICES, slideOrientation);
+
+		//create preview
+		PreviewPanel preview = new PreviewPanel((int)slideLength, (int)slideWidth, (int)slideWorkingLength, (int)slideWorkingWidth, slideOrientation);
+		gd.addPanel(preview);
+
+		gd.setResizable(true);
+		gd.setSize(360, 360);
+		gd.setLocationRelativeTo(null);
+
+		gd.showDialog();
+		if (gd.wasCanceled())
+			return;
+
+		slideWidth       	= (int) gd.getNextNumber();
+		slideLength      	= (int) gd.getNextNumber();
+		slideDPI         	= (int) gd.getNextNumber();
+		slideWorkingWidth 	= (int) gd.getNextNumber();
+		slideWorkingLength  = (int) gd.getNextNumber();
+		slideOrientation 	= gd.getNextChoice();
+
+		if(slideWorkingWidth>slideWidth) slideWorkingWidth=slideWidth;
+		if(slideWorkingLength>slideLength) slideWorkingLength=slideLength;
+	}
 	public void mousePressed(final MouseEvent e) {
 		boolean disablePopup = false;
 		int x = e.getX();
@@ -1299,25 +1433,18 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		if(newTool==-1){ //click fell outside visible buttons
 			return;
 		}
-		if(newTool==CUSTOM1 && !e.isPopupTrigger()){ //creates a binary mask and sets the scale of the image
-			// Get the name of the image
-			ImagePlus origin = IJ.getImage();
-			String originTitle = origin.getTitle();
-			int endOfTitle = originTitle.indexOf('.');
-			originTitle = originTitle.substring(0, endOfTitle);
-			// Create the mask
-			IJ.run("Create Mask");
-			// Set the DPI on the current image
-			IJ.run("Set Scale...", "distance="+IMAGE_DPI+" known=1 unit=inches");
-			
-			ImagePlus mask = IJ.getImage();
-			mask.setTitle(originTitle + "_Mask.jpg");
-			
-			makeMaskMargin(mask);
-			
+		int flags = e.getModifiers();
+		boolean isRightClick = e.isPopupTrigger()||(!IJ.isMacintosh()&&(flags&Event.META_MASK)!=0);
+
+		if(newTool==CUSTOM1 && !isRightClick){ //creates a binary mask and sets the scale of the image
+			if(cropType==CROP_ROI){
+				cropROI();
+			} else {
+				editMaskParameters();
+			}
 			return;
 		}
-		if(newTool==CUSTOM2 && !e.isPopupTrigger()){
+		if(newTool==CUSTOM2 && !isRightClick){
 			IJ.run("Crop");
 
 			return;
@@ -1332,8 +1459,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
             menus[newTool].show(e.getComponent(), e.getX(), e.getY());
 			return;
 		}
-		int flags = e.getModifiers();
-		boolean isRightClick = e.isPopupTrigger()||(!IJ.isMacintosh()&&(flags&Event.META_MASK)!=0);
+		
 		boolean doubleClick = newTool==current && (System.currentTimeMillis()-mouseDownTime)<=DOUBLE_CLICK_THRESHOLD;
  		mouseDownTime = System.currentTimeMillis();
 		if (!doubleClick || isRightClick) {
@@ -1351,7 +1477,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			}
 			ImagePlus imp = WindowManager.getCurrentImage();
 			switch (current) {
-				case CUSTOM1: //this method is never reached
+				case CUSTOM1:
 					break;
 				case RECTANGLE:
 					if (rectType==ROUNDED_RECT_ROI)
@@ -1637,6 +1763,18 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			arrowMode = true;
 			setTool2(LINE);
 			showMessage(LINE);
+		} else if (item==cropItem || item== changeDimItem){
+			if (item==cropItem)
+				cropType = CROP_ROI;
+			else
+				cropType = CROP_CHANGE_DIM;
+			cropItem.setState(cropType==CROP_ROI);
+			changeDimItem.setState(cropType==CROP_CHANGE_DIM);
+			repaintTool(CUSTOM1);
+			showMessage(CUSTOM1);
+
+			if (!previousName.equals(getToolName()))
+				IJ.notifyEventListeners(IJEventListener.TOOL_CHANGED);
 		} else {
 			String label = item.getLabel();
 			String cmd = item.getActionCommand();
@@ -1773,6 +1911,12 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		String cmd = e.getActionCommand();
 		PopupMenu popup = (PopupMenu)item.getParent();
 		
+		if ("Crop Image".equals(cmd)) {
+			return;
+		}
+		if ("Change Crop Dimensions".equals(cmd)){
+			return;
+		}
 		if (zoomPopup==popup) {
 			if ("Zoom In".equals(cmd))
 				IJ.runPlugIn("ij.plugin.Zoom", "in");
