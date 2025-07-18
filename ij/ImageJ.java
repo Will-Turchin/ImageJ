@@ -512,15 +512,16 @@ public class ImageJ extends Frame implements ActionListener,
 		if (cmd==null) {
 			switch (keyCode) {
 				case KeyEvent.VK_TAB: WindowManager.putBehind(); return;				
-				case KeyEvent.VK_BACK_SPACE: case KeyEvent.VK_DELETE:
-					if (!(shift||control||alt||meta)) {
+				case KeyEvent.VK_BACK_SPACE: case KeyEvent.VK_DELETE: //instead of removing contents of ROI, delete the roi
+					imp.deleteRoi();
+					/*if (!(shift||control||alt||meta)) {
 						if (deleteOverlayRoi(imp))
 							return;
 						if (imp!=null&&imp.getOverlay()!=null&&imp==GelAnalyzer.getGelImage())
 							return;
 						cmd="Clear";
 						hotkey=true;
-					}
+					}*/
 					break;
 				//case KeyEvent.VK_BACK_SLASH: cmd=IJ.altKeyDown()?"Animation Options...":"Start Animation"; break;
 				case KeyEvent.VK_EQUALS: cmd="In [+]"; break;

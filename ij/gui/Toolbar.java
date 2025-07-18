@@ -221,10 +221,10 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	void addPopupMenus() {
 		//adding popup menu to (hopefully) be able to set crop dimensions
 		cropPopup = newPopupMenu();
-		cropItem = new CheckboxMenuItem("Crop Image", cropType==CROP_ROI);
+		cropItem = new CheckboxMenuItem("Generate Mask", cropType==CROP_ROI);
 		cropItem.addItemListener(this);
 		cropPopup.add(cropItem);
-		changeDimItem = new CheckboxMenuItem("Change Crop Dimensions", cropType==CROP_CHANGE_DIM);
+		changeDimItem = new CheckboxMenuItem("Change Mask Dimensions", cropType==CROP_CHANGE_DIM);
 		changeDimItem.addItemListener(this);
 		cropPopup.add(changeDimItem);
 		menus[CUSTOM1] = cropPopup; //tie popup to the tool
@@ -374,8 +374,8 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 
 		// Draw the convert to binary button
 		icons[CUSTOM1] = null; //Lines should make sure icon isn't overriden
+		names[CUSTOM1] = "Generate Mask";
 		
-		names[CUSTOM1] = "Convert to Binary";
 		drawButton(g, CUSTOM1);
 		icons[CUSTOM2] = null; //Lines should make sure icon isn't overriden
 		
@@ -437,14 +437,41 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 		switch (tool) { // draw the tool icon
 			case CUSTOM1:
-				xOffset = x + 2 * scale; yOffset = y + 1 * scale;
+				xOffset = x; yOffset = y;
 				if (cropType == CROP_ROI){
-					dot(4,0);  m(2,0); d(3,1); d(4,2);  m(0,0); d(1,1);
-					m(0,2); d(1,3); d(2,4);  dot(0,4); m(3,3); d(15,15);
-					g.setColor(Roi.getColor());
-					m(1,2); d(3,2); m(2,1); d(2,3);
+					names[CUSTOM1] = "Generate Mask";
+					
+					for(int i=1; i<=12; i++){
+						if(i<3 || i>10){
+							m(0, i); d(18, i);
+						} else {
+							m(0, i); d(1, i);
+							m(13, i); d(18, i);
+						}
+					}
+
+					m(0,0); d(18, 0);
+					m(18, 0); d(18, 13);
+					m(0, 13); d(18, 13);
+					m(0,0); d(0, 13);
 				} else if (cropType == CROP_CHANGE_DIM){
-					g.drawRoundRect(x-1*scale, y+1*scale, 17*scale, 13*scale, 8*scale, 8*scale);
+					names[CUSTOM1] = "Change Mask Dimensions";
+					
+					g.setColor(Color.RED);
+					for(int i=1; i<=12; i++){
+						if(i<3 || i>10){
+							m(0, i); d(18, i);
+						} else {
+							m(0, i); d(1, i);
+							m(13, i); d(18, i);
+						}
+					}
+
+					g.setColor(Color.BLACK);
+					m(0,0); d(18, 0);
+					m(18, 0); d(18, 13);
+					m(0, 13); d(18, 13);
+					m(0,0); d(0, 13);
 				}
 
 				drawTriangle(16, 16);
@@ -455,9 +482,6 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				m(18, 0); d(18, 1); m(18, 4); d(18, 7); m(18, 10); d(18, 13);
 				m(15, 13); d(12, 13); m(9, 13); d(6, 13); m(3, 13); d(0, 13);
 				m(0,10); d(0, 7); m(0,4); d(0, 1);
-				g.setColor(Roi.getColor());
-				//drawTriangle(16, 16);
-				//g.drawRect(x-1*scale, y+1*scale, 17*scale, 13*scale);
 				return;
 			case RECTANGLE:
 				xOffset = x; yOffset = y;
@@ -1351,45 +1375,83 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		String orientation;
 
 		PreviewPanel(int w, int l, int crop_w, int crop_l, String orientation) {
+			if(crop_w>w) crop_w=w;
+			if(crop_l>l) crop_l=l;
+			crop_w = (int)(((double)crop_w/(double)w)*((double)x));
+			crop_l = (int)(((double)crop_l/(double)l)*((double)y));
+			crop_l = (y - crop_l)/2;
+			
 			this.w = w;
 			this.l = l;
+			this.orientation = orientation;
 			this.crop_w = crop_w;
 			this.crop_l = crop_l;
-			this.orientation = orientation;
-			if(crop_w>w) crop_w=w;
 
-			crop_w = ((crop_w)/(w)*x);
+			/*String output = " Crop:"+Integer.toString(this.crop_l) + " width:" + Integer.toString(l) + " x:" + Integer.toString(y);
+			IJ.log(output);*/
 		}
 
 		@Override
 		public Dimension getPreferredSize() {
-			return new Dimension(x+20, y+20);
+			if(orientation==ORIENTATION_CHOICES[0] || orientation==ORIENTATION_CHOICES[2]){
+				return new Dimension(y+20, x+20);
+			} else {
+				return new Dimension(x+20, y+20);
+			}
 		}
 
 		@Override
 		public void paint(Graphics g) {
-			g.setColor(java.awt.Color.WHITE);
-			g.fillRect(0, 0, x+20, y+20);
-			g.setColor(java.awt.Color.BLACK);
-			g.drawRect(10, 10, x, y);
+			// outer rectangle
+			if(orientation==ORIENTATION_CHOICES[1] || orientation==ORIENTATION_CHOICES[3]){ //landscape
+				g.setColor(java.awt.Color.WHITE);
+				g.fillRect(0, 0, x+20, y+20);
+				g.setColor(java.awt.Color.BLACK);
+				g.drawRect(10, 10, x, y);
+			} else { // portrait
+				g.setColor(java.awt.Color.WHITE);
+				g.fillRect(0, 0, y+20, x+20);
+				g.setColor(java.awt.Color.BLACK);
+				g.drawRect(10, 10, y, x);
+			}
+			
+			/*
+			 * the slide panel follows the format
+			 * of
+			 * 1: Label
+			 * 2: top
+			 * 3&4: sides
+			 */
 
-			if ("0".equals(orientation)) {
-				g.fillRect(10+x, 10, x-crop_w, y);
+			if (orientation==ORIENTATION_CHOICES[0]) {// 0
+				g.fillRect(10, 10+crop_w, y, x-crop_w);
+				g.fillRect(10, 11, y, crop_l);
+				g.fillRect(11, 10, crop_l, x);
+				g.fillRect(10+y-crop_l, 10, crop_l, x);
 				g.setColor(java.awt.Color.BLUE);
 				g.fillOval(5, 5, 10, 10);
-			} else if ("90".equals(orientation)) {
-
+			} else if (orientation==ORIENTATION_CHOICES[1]) {// 90
+				g.fillRect(10, 10, x-crop_w, y);
+				g.fillRect(10+x-crop_l, 10, crop_l, y);
+				g.fillRect(10, 11, x, crop_l); 
+				g.fillRect(10, 10+y-crop_l, x, crop_l);
 				g.setColor(java.awt.Color.BLUE);
-				g.fillOval(x+5, 5, 10, 10);
-			} else if ("180".equals(orientation)) {
-
+				g.fillOval(x+5, 5, 10, 10);				
+			} else if (orientation==ORIENTATION_CHOICES[2]) {// 180
+				g.fillRect(10, 10, y, x-crop_w);
+				g.fillRect(10, 10+x-crop_l, y, crop_l);
+				g.fillRect(11, 10, crop_l, x);
+				g.fillRect(10+y-crop_l, 10, crop_l, x);
+				g.setColor(java.awt.Color.BLUE);
+				g.fillOval(5+y, 5+x, 10, 10);
+			} else if (orientation==ORIENTATION_CHOICES[3]) {// 270
+				g.fillRect(10+crop_w, 10, x-crop_w, y);
+				g.fillRect(11, 10, crop_l, y);
+				g.fillRect(10, 11, x, crop_l);
+				g.fillRect(10, 10+y-crop_l, x, crop_l);
 				g.setColor(java.awt.Color.BLUE);
 				g.fillOval(5, y+5, 10, 10);
-			} else if ("270".equals(orientation)) {
-
-				g.setColor(java.awt.Color.BLUE);
-				g.fillOval(x+5, y+5, 10, 10);
-			}
+			} 
 		}
 	}
 	private void editMaskParameters(){
@@ -1401,10 +1463,13 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		gd.addNumericField("Working Area Width", slideWorkingWidth, 2);
 		gd.addNumericField("Working Area Length", slideWorkingLength, 2);
 		gd.addChoice("Orientation", ORIENTATION_CHOICES, slideOrientation);
+		gd.addMessage("Preview of mask*");
 
 		//create preview
 		PreviewPanel preview = new PreviewPanel((int)slideLength, (int)slideWidth, (int)slideWorkingLength, (int)slideWorkingWidth, slideOrientation);
 		gd.addPanel(preview);
+
+		gd.addMessage("*may not be proportional");
 
 		gd.setResizable(true);
 		gd.setSize(360, 360);
@@ -1542,8 +1607,12 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		Calibration cal = img.getCalibration();
 		double inPerPixel = cal.pixelWidth;
 		double mmPerPixel = 25.4 * inPerPixel;
-		int px_border = (int)Math.round(0.5 / mmPerPixel); // border is .5 mm (500 microns)
-		int bottom_border = (int)Math.round(24.5 / mmPerPixel);
+
+		double border = (slideWidth - slideWorkingWidth)/2.0;
+		int px_border = (int)Math.round(border / mmPerPixel); // border sides
+		
+		border = slideLength - slideWorkingLength;
+		int label_border = (int)Math.round(border / mmPerPixel);
 
 		int w = img.getWidth();
 		int h = img.getHeight();
@@ -1552,12 +1621,37 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		ImageProcessor ip = img.getProcessor();
 		ip.setColor(255); // black
 		
-		// paint four rectangles
-		ip.fillRect(0, 0, w, px_border); //top
-		ip.fillRect(0, 0, px_border, h); //left
-		ip.fillRect(w - px_border, 0, px_border, h);
-		ip.fillRect(0, h - bottom_border, w, bottom_border);
-		img.updateAndDraw();
+		if(slideOrientation==ORIENTATION_CHOICES[0]){
+			// paint four rectangles
+			ip.fillRect(0, h - label_border, w, label_border); //label
+			ip.fillRect(0, 0, w, px_border); //top
+			ip.fillRect(0, 0, px_border, h);
+			ip.fillRect(w - px_border, 0, px_border, h);
+			img.updateAndDraw();
+		} else if (slideOrientation==ORIENTATION_CHOICES[1]){
+			// paint four rectangles
+			// paint four rectangles
+			ip.fillRect(0, 0, label_border, h); //label
+			ip.fillRect(w-px_border, 0, px_border, h); //top
+			ip.fillRect(0, 0, w, px_border);
+			ip.fillRect(0, h - px_border, w, px_border);
+			img.updateAndDraw();
+		} else if (slideOrientation==ORIENTATION_CHOICES[2]){
+			// paint four rectangles
+			ip.fillRect(0, 0, w, label_border); //label
+			ip.fillRect(0, h-px_border, w, px_border); //top
+			ip.fillRect(0, 0, px_border, h);
+			ip.fillRect(w - px_border, 0, px_border, h);
+			img.updateAndDraw();
+		} else if (slideOrientation==ORIENTATION_CHOICES[3]){
+			// paint four rectangles
+			// paint four rectangles
+			ip.fillRect(w - label_border, 0, label_border, h); //label
+			ip.fillRect(0, 0, px_border, h); //top
+			ip.fillRect(0, 0, w, px_border);
+			ip.fillRect(0, h - px_border, w, px_border);
+			img.updateAndDraw();
+		}
 
 	}
 	public void mouseReleased(MouseEvent e) {

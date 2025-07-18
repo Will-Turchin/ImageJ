@@ -68,7 +68,8 @@ public class Roi extends Object implements Cloneable, java.io.Serializable, Iter
 	int previousSX, previousSY;     //remember for aborting moving with esc and constrain
 
 	public static final BasicStroke onePixelWide = new BasicStroke(1);
-	protected static Color ROIColor = Prefs.getColor(Prefs.ROICOLOR,Color.yellow);
+	
+	protected static Color ROIColor = Prefs.getColor(Prefs.ROICOLOR,Color.BLUE);
 	protected static int pasteMode = Blitter.COPY;
 	protected static int lineWidth = 1;
 	protected static Color defaultFillColor;

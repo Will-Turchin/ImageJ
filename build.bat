@@ -43,6 +43,11 @@ REM ─── 5) Overlay your newly compiled classes ─────────
 echo Overlaying modified classes...
 xcopy /Y /E "%OUT_DIR%\*" "%TMP_DIR%\" >nul
 
+REM ─── Copy resources needed at runtime ────────────────────────────────────
+if not exist "%TMP_DIR%\images" mkdir "%TMP_DIR%\images"
+copy images\microscope.gif "%TMP_DIR%\images\" >nul
+copy images\about.jpg "%TMP_DIR%\images\" >nul
+
 REM ─── 6) Package everything into the fat JAR ──────────────────────────────
 echo Packaging "%FAT_JAR%" with resources and classes...
 jar cfm "%FAT_JAR%" manifest.txt -C "%TMP_DIR%" . || (
