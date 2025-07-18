@@ -47,6 +47,11 @@ REM ─── Copy resources needed at runtime ───────────
 if not exist "%TMP_DIR%\images" mkdir "%TMP_DIR%\images"
 copy images\microscope.gif "%TMP_DIR%\images\" >nul
 copy images\about.jpg "%TMP_DIR%\images\" >nul
+copy IJ_Props.txt "%TMP_DIR%\" >nul
+xcopy /Y /E "macros" "%TMP_DIR%\macros\" >nul
+if not exist "%TMP_DIR%\ij\plugin" mkdir "%TMP_DIR%\ij\plugin"
+copy plugins\MacAdapter.class "%TMP_DIR%\ij\plugin\" >nul
+copy plugins\MacAdapter9.class "%TMP_DIR%\ij\plugin\" >nul
 
 REM ─── 6) Package everything into the fat JAR ──────────────────────────────
 echo Packaging "%FAT_JAR%" with resources and classes...
