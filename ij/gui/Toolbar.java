@@ -38,8 +38,10 @@ import java.util.TimerTask;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageOutputStream;
 import javax.imageio.spi.IIORegistry;
 import java.util.Iterator;
@@ -202,9 +204,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	}
 
 	public Toolbar() {
-		
 		init();
-		
 		ImageIO.scanForPlugins();
 		checkTiffWriter();
 		
@@ -1382,26 +1382,34 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 			tools[current].showPopupMenu(e, this);	
 		}
 	}
-
+	
 	private void saveAsTiff(ImagePlus imp, String outputPath){
 		BufferedImage src = imp.getBufferedImage();
 		BufferedImage bin = new BufferedImage(src.getWidth(), src.getHeight(), 
 												BufferedImage.TYPE_BYTE_BINARY);
-		bin.getGraphics().drawImage(src, 0, 0, null); // copies & dither-free
+		
+		Graphics2D g = bin.createGraphics();
+		g.drawImage(src, 0, 0, null);
+		g.dispose();
 
-		// Grab the first TIFF writer on classpath
+		// Get the TIFF writer
 		Iterator<ImageWriter> it = ImageIO.getImageWritersByFormatName("TIFF");
 		if (!it.hasNext())
 			throw new IllegalStateException("No TIFF writer found!");
 		ImageWriter writer = it.next();
 
-		// Configure 1-bit CCITT Group 4 (loss-less, fax standard)
+		//Pick LZW compression
 		ImageWriteParam p = writer.getDefaultWriteParam();
 		p.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-		p.setCompressionType("CCITT T.6");          // aka Group 4
+		p.setCompressionType("LZW");
 
-		// Point the writer at an output stream and emit image
-		File outFile = new File(outputPath+".tif");
+		/*
+		 * ADD DPI (force to 300) IN THIS SECTION
+		 */
+
+
+		// Write out
+		File outFile = new File(outputPath+".tiff");
 		try (ImageOutputStream ios = ImageIO.createImageOutputStream(outFile)) {
 			writer.setOutput(ios);
 			writer.write(null, new IIOImage(bin, null, null), p);
@@ -1409,7 +1417,9 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
     		IJ.handleException(e);
 		} finally {
 			writer.dispose();
-		} 
+		}
+		
+		IJ.log("SAVED: "+outputPath);
 	}
 
 	private void cropROI(){
