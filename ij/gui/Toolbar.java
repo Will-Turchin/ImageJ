@@ -29,13 +29,22 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import javax.imageio.spi.IIORegistry;
+import java.util.Iterator;
+
+import com.twelvemonkeys.imageio.plugins.tiff.TIFFImageWriter;
 
 import ij.IJ;
 import ij.IJEventListener;
@@ -46,6 +55,7 @@ import ij.Prefs;
 import ij.WindowManager;
 import ij.macro.Program;
 import ij.measure.Calibration;
+import ij.plugin.Duplicator;
 import ij.plugin.MacroInstaller;
 import ij.plugin.frame.ColorPicker;
 import ij.plugin.frame.Editor;
@@ -174,14 +184,30 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private static int slideDPI = 800;
 	private static final String[] ORIENTATION_CHOICES = {"0", "90", "180", "270"};
 	private static String slideOrientation = ORIENTATION_CHOICES[0];
+	private static boolean isPrinterB = false;
 	
 	/** Obsolete public constants */
 	public static final int SPARE1=UNUSED, SPARE2=CUSTOM1, SPARE3=CUSTOM2, SPARE4=CUSTOM3, 
 		SPARE5=CUSTOM4, SPARE6=CUSTOM5, SPARE7=CUSTOM6, SPARE8=CUSTOM7, SPARE9=22;
 
+	//optional method to determine if the Tiff file writer (twelvemonkeys) is on classpath
+	public void checkTiffWriter() {
+		ImageIO.scanForPlugins();  // Ensure all plugins are registered
+
+		Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("TIFF");
+		while (writers.hasNext()) {
+			ImageWriter w = writers.next();
+			IJ.log("TIFF Writer: " + w.getClass().getName());
+		}
+	}
 
 	public Toolbar() {
+		
 		init();
+		
+		ImageIO.scanForPlugins();
+		checkTiffWriter();
+		
 		down = new boolean[MAX_TOOLS];
 		resetButtons();
 		down[0] = true;
@@ -440,7 +466,6 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				xOffset = x; yOffset = y;
 				if (cropType == CROP_ROI){
 					names[CUSTOM1] = "Generate Mask";
-					
 					for(int i=1; i<=12; i++){
 						if(i<3 || i>10){
 							m(0, i); d(18, i);
@@ -454,6 +479,14 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 					m(18, 0); d(18, 13);
 					m(0, 13); d(18, 13);
 					m(0,0); d(0, 13);
+
+					if(isPrinterB){
+						g.setColor(Color.BLUE);
+						m(4,3); d(4,10); d(7,10);
+						m(8,9); d(8, 7); m(8,5); d(8,4);
+						m(4,3); d(7,3);
+						m(4, 6); d(7,6);
+					}
 				} else if (cropType == CROP_CHANGE_DIM){
 					names[CUSTOM1] = "Change Mask Dimensions";
 					
@@ -1350,8 +1383,37 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		}
 	}
 
+	private void saveAsTiff(ImagePlus imp, String outputPath){
+		BufferedImage src = imp.getBufferedImage();
+		BufferedImage bin = new BufferedImage(src.getWidth(), src.getHeight(), 
+												BufferedImage.TYPE_BYTE_BINARY);
+		bin.getGraphics().drawImage(src, 0, 0, null); // copies & dither-free
+
+		// Grab the first TIFF writer on classpath
+		Iterator<ImageWriter> it = ImageIO.getImageWritersByFormatName("TIFF");
+		if (!it.hasNext())
+			throw new IllegalStateException("No TIFF writer found!");
+		ImageWriter writer = it.next();
+
+		// Configure 1-bit CCITT Group 4 (loss-less, fax standard)
+		ImageWriteParam p = writer.getDefaultWriteParam();
+		p.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+		p.setCompressionType("CCITT T.6");          // aka Group 4
+
+		// Point the writer at an output stream and emit image
+		File outFile = new File(outputPath+".tif");
+		try (ImageOutputStream ios = ImageIO.createImageOutputStream(outFile)) {
+			writer.setOutput(ios);
+			writer.write(null, new IIOImage(bin, null, null), p);
+		}catch (IOException e) {                   // <- compiler-required catch
+    		IJ.handleException(e);
+		} finally {
+			writer.dispose();
+		} 
+	}
+
 	private void cropROI(){
-		// Get the name of the image
+		// grab the current image
 		ImagePlus origin = IJ.getImage();
 		String originTitle = origin.getTitle();
 		int endOfTitle = originTitle.indexOf('.');
@@ -1362,9 +1424,11 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		IJ.run("Set Scale...", "distance="+slideDPI+" known=1 unit=inches");
 		
 		ImagePlus mask = IJ.getImage();
-		mask.setTitle(originTitle + "_Mask.jpg");
-		
 		makeMaskMargin(mask);
+		IJ.run(mask, "Convert to Mask", "");
+
+		mask.setTitle(originTitle + "_Mask");
+		saveAsTiff(mask, mask.getTitle());
 		return;
 	}
 
@@ -1425,7 +1489,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 
 			if (orientation==ORIENTATION_CHOICES[0]) {// 0
 				g.fillRect(10, 10+crop_w, y, x-crop_w);
-				g.fillRect(10, 11, y, crop_l);
+				g.fillRect(10, 10, y, crop_l);
 				g.fillRect(11, 10, crop_l, x);
 				g.fillRect(10+y-crop_l, 10, crop_l, x);
 				g.setColor(java.awt.Color.BLUE);
@@ -1446,7 +1510,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 				g.fillOval(5+y, 5+x, 10, 10);
 			} else if (orientation==ORIENTATION_CHOICES[3]) {// 270
 				g.fillRect(10+crop_w, 10, x-crop_w, y);
-				g.fillRect(11, 10, crop_l, y);
+				g.fillRect(10, 10, crop_l, y);
 				g.fillRect(10, 11, x, crop_l);
 				g.fillRect(10, 10+y-crop_l, x, crop_l);
 				g.setColor(java.awt.Color.BLUE);
@@ -1463,9 +1527,10 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		gd.addNumericField("Working Area Width", slideWorkingWidth, 2);
 		gd.addNumericField("Working Area Length", slideWorkingLength, 2);
 		gd.addChoice("Orientation", ORIENTATION_CHOICES, slideOrientation);
-		gd.addMessage("Preview of mask*");
+		gd.addCheckbox("Is printer B?", isPrinterB);
 
 		//create preview
+		gd.addMessage("Preview of mask*");
 		PreviewPanel preview = new PreviewPanel((int)slideLength, (int)slideWidth, (int)slideWorkingLength, (int)slideWorkingWidth, slideOrientation);
 		gd.addPanel(preview);
 
@@ -1485,6 +1550,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		slideWorkingWidth 	= (int) gd.getNextNumber();
 		slideWorkingLength  = (int) gd.getNextNumber();
 		slideOrientation 	= gd.getNextChoice();
+		isPrinterB 			= gd.getNextBoolean();
 
 		if(slideWorkingWidth>slideWidth) slideWorkingWidth=slideWidth;
 		if(slideWorkingLength>slideLength) slideWorkingLength=slideLength;

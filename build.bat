@@ -5,6 +5,7 @@ REM ─── Configuration ─────────────────�
 set "OUT_DIR=out"
 set "TMP_DIR=tmp"
 set "IJ_CORE_JAR=ij.jar"
+set "TWELVE_MONKEYS_DIR=twelvemonkeysjars"
 set "FAT_JAR=RavenJ.jar"
 set "MAIN_CLASS=ij.ImageJ"
 
@@ -15,7 +16,7 @@ mkdir "%OUT_DIR%" "%TMP_DIR%"
 
 REM ─── 2) Compile your modified core + GUI + plugins in one javac call ─────
 echo Compiling modified core + GUI + plugin sources...
-javac -Xlint:none -d "%OUT_DIR%" ^
+javac -encoding UTF-8 -Xlint:none -d "%OUT_DIR%" ^
     ij\*.java ^
     ij\gui\*.java ^
     ij\plugin\*.java ^
@@ -33,11 +34,21 @@ REM ─── 3) Write manifest.txt ──────────────�
   echo.
 ) > manifest.txt
 
-REM ─── 4) Unpack full ImageJ core (classes + resources) ────────────────────
+REM ─── 4) Unpack full ImageJ core AND TwelveMonkeys jars ────────────────────
 echo Unpacking "%IJ_CORE_JAR%" into "%TMP_DIR%"\...
 pushd "%TMP_DIR%"
   jar xf "..\%IJ_CORE_JAR%"
 popd
+
+echo Unpacking TwelveMonkeys jars...
+for %%f in ("%TWELVE_MONKEYS_DIR%\*.jar") do (
+  echo    %%~nxf
+  pushd "%TMP_DIR%"
+    jar xf "..\%%f"
+  popd
+)
+del "%TMP_DIR%\META-INF\*.SF"  2>nul
+del "%TMP_DIR%\META-INF\*.DSA" 2>nul
 
 REM ─── 5) Overlay your newly compiled classes ───────────────────────────────
 echo Overlaying modified classes...

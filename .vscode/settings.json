@@ -1,3 +1,7 @@
+// .vscode/settings.json
 {
-    "java.configuration.updateBuildConfiguration": "automatic"
+  "java.project.referencedLibraries": [
+    "${workspaceFolder}/twelvemonkeysjars/*.jar"
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic"
 }
