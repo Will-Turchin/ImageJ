@@ -36,12 +36,18 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.Element;
+
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageTypeSpecifier;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOInvalidTreeException;
 import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
 import javax.imageio.stream.ImageOutputStream;
 import javax.imageio.spi.IIORegistry;
 import java.util.Iterator;
@@ -183,7 +189,7 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	private static double slideLength = 75.0;
 	private static double slideWorkingWidth = 24.0;
 	private static double slideWorkingLength = 50;
-	private static int slideDPI = 800;
+	private static int slideDPI = 2400;
 	private static final String[] ORIENTATION_CHOICES = {"0", "90", "180", "270"};
 	private static String slideOrientation = ORIENTATION_CHOICES[0];
 	private static boolean isPrinterB = false;
@@ -1384,12 +1390,24 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 	}
 	
 	private void saveAsTiff(ImagePlus imp, String outputPath){
+		double slideLengthInch = slideLength /  25.4;
+		double slideWidthInch = slideWidth / 25.4;
+		int tiffDPI = 300;
+
 		BufferedImage src = imp.getBufferedImage();
-		BufferedImage bin = new BufferedImage(src.getWidth(), src.getHeight(), 
+		BufferedImage bin;
+		
+		if(slideOrientation.equals(ORIENTATION_CHOICES[0]) || slideOrientation.equals(ORIENTATION_CHOICES[2])){
+			bin = new BufferedImage((int)(slideWidthInch*tiffDPI),(int)(slideLengthInch*tiffDPI), 
 												BufferedImage.TYPE_BYTE_BINARY);
+		} else {
+			bin = new BufferedImage((int)(slideLengthInch*tiffDPI), (int)(slideWidthInch*tiffDPI), 
+												BufferedImage.TYPE_BYTE_BINARY);
+		}
+		
 		
 		Graphics2D g = bin.createGraphics();
-		g.drawImage(src, 0, 0, null);
+		g.drawImage(src, 0, 0, bin.getWidth(), bin.getHeight(), null);
 		g.dispose();
 
 		// Get the TIFF writer
@@ -1399,20 +1417,81 @@ public class Toolbar extends Canvas implements MouseListener, MouseMotionListene
 		ImageWriter writer = it.next();
 
 		//Pick LZW compression
-		ImageWriteParam p = writer.getDefaultWriteParam();
-		p.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-		p.setCompressionType("LZW");
+		ImageWriteParam param = writer.getDefaultWriteParam();
+		param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+		param.setCompressionType("LZW");
 
 		/*
 		 * ADD DPI (force to 300) IN THIS SECTION
 		 */
+		ImageTypeSpecifier type = ImageTypeSpecifier.createFromBufferedImageType(bin.getType());
+		IIOMetadata metadata = writer.getDefaultImageMetadata(type, param);
+		IIOMetadataNode resUnit = new IIOMetadataNode("TIFFField");
+		final String fmt = "com_sun_media_imageio_plugins_tiff_image_1.0";
+		// modify metadata to include dpi
+		IIOMetadataNode root = new IIOMetadataNode(fmt);
+		IIOMetadataNode ifd = new IIOMetadataNode("TIFFIFD");
+		root.appendChild(ifd);
 
+		Node rootDefault = metadata.getAsTree(fmt);
+		NodeList fields = ((Element) rootDefault)
+						.getElementsByTagName("TIFFField");
+		for (int i = fields.getLength() - 1; i >= 0; i--) {
+			Element f = (Element) fields.item(i);
+			String num = f.getAttribute("number");
+			if ("282".equals(num) || "283".equals(num) || "296".equals(num)) {
+				f.getParentNode().removeChild(f);   // drop duplicates
+			}
+		}
+		try{
+			metadata.setFromTree(fmt, rootDefault);
+		} catch(IIOInvalidTreeException e){
+			IJ.handleException(e);
+		}
+
+		resUnit.setAttribute("number", "296");          // ResolutionUnit
+		resUnit.setAttribute("name",   "ResolutionUnit");
+		IIOMetadataNode resVals = new IIOMetadataNode("TIFFShorts");
+		IIOMetadataNode resVal = new IIOMetadataNode("TIFFShort");
+		resVal.setAttribute("value", "2");              // 2 = inches
+		resVals.appendChild(resVal);
+		resUnit.appendChild(resVals);
+		ifd.appendChild(resUnit);
+
+		// XResolution
+		IIOMetadataNode xRes = new IIOMetadataNode("TIFFField");
+		xRes.setAttribute("number", "282");
+		xRes.setAttribute("name", "XResolution");
+		IIOMetadataNode xVals = new IIOMetadataNode("TIFFRationals");
+		IIOMetadataNode xVal = new IIOMetadataNode("TIFFRational");
+		xVal.setAttribute("value", tiffDPI + "/1");
+		xVals.appendChild(xVal);
+		xRes.appendChild(xVals);
+		ifd.appendChild(xRes);
+		// YResolution
+		IIOMetadataNode yRes = new IIOMetadataNode("TIFFField");
+		yRes.setAttribute("number", "283");
+		yRes.setAttribute("name", "YResolution");
+		IIOMetadataNode yVals = new IIOMetadataNode("TIFFRationals");
+		IIOMetadataNode yVal = new IIOMetadataNode("TIFFRational");
+		yVal.setAttribute("value", tiffDPI + "/1");
+		yVals.appendChild(yVal);
+		yRes.appendChild(yVals);
+		ifd.appendChild(yRes);
+
+		try {
+			metadata.mergeTree(fmt, root);
+		} catch (IIOInvalidTreeException e) {
+			IJ.handleException(e);
+		}
+		
 
 		// Write out
-		File outFile = new File(outputPath+".tiff");
+		File outFile = new File(outputPath+".tif");
 		try (ImageOutputStream ios = ImageIO.createImageOutputStream(outFile)) {
 			writer.setOutput(ios);
-			writer.write(null, new IIOImage(bin, null, null), p);
+			IIOImage iioImg = new IIOImage(bin, null, metadata);
+			writer.write(null, iioImg, param);
 		}catch (IOException e) {                   // <- compiler-required catch
     		IJ.handleException(e);
 		} finally {
