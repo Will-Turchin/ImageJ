@@ -1,5 +1,6 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
+cd /d %~dp0
 
 REM ─── Configuration ─────────────────────────────────────────────────────────
 set "OUT_DIR=out"
@@ -9,32 +10,50 @@ set "TWELVE_MONKEYS_DIR=twelvemonkeysjars"
 set "FAT_JAR=RavenJ.jar"
 set "MAIN_CLASS=ij.ImageJ"
 
-REM ─── 1) Clean out & tmp dirs ──────────────────────────────────────────────
+REM ─── Build a compile-time CP that includes ij.jar, images, AND all TwelveMonkeys jars
+set "CP=.;%IJ_CORE_JAR%;ij\images"
+for %%f in ("%TWELVE_MONKEYS_DIR%\*.jar") do (
+    set "CP=!CP!;%%~f"
+)
+
+echo Using compile CP:
+echo   %CP%
+echo.
+
+REM ─── 1) Clean & recreate output dirs ──────────────────────────────────────
 if exist "%OUT_DIR%" rd /s /q "%OUT_DIR%"
 if exist "%TMP_DIR%" rd /s /q "%TMP_DIR%"
 mkdir "%OUT_DIR%" "%TMP_DIR%"
 
-REM ─── 2) Compile your modified core + GUI + plugins in one javac call ─────
-echo Compiling modified core + GUI + plugin sources...
-javac -encoding UTF-8 -Xlint:none -d "%OUT_DIR%" ^
-    ij\*.java ^
-    ij\gui\*.java ^
-    ij\plugin\*.java ^
-    ij\plugin\filter\*.java ^
-    ij\plugin\frame\*.java || (
+REM ─── 2) Compile all IJ sources against ij.jar + TwelveMonkeys SPI ────────
+echo Gathering sources...
+del /q sources.txt 2>nul
+
+REM 1) %%~f  – full path
+REM 2) convert \ → / (avoids javac escaping rules)
+REM 3) wrap in quotes to preserve spaces
+for /R "ij" %%f in (*.java) do (
+    set "p=%%~f"
+    set "p=!p:\=/!"
+    echo "!p!">>sources.txt
+)
+
+echo Compiling...
+javac -encoding UTF-8 -cp "%CP%" -Xlint:none -d "%OUT_DIR%" @sources.txt || (
   echo.
   echo *** Compilation failed
   pause
   exit /b 1
 )
+del sources.txt
 
-REM ─── 3) Write manifest.txt ──────────────────────────────────────────────
+REM ─── 3) Write manifest ───────────────────────────────────────────────────
 (
   echo Main-Class: %MAIN_CLASS%
   echo.
 ) > manifest.txt
 
-REM ─── 4) Unpack full ImageJ core AND TwelveMonkeys jars ────────────────────
+REM ─── 4) Unpack ij.jar + TwelveMonkeys into tmp ───────────────────────────
 echo Unpacking "%IJ_CORE_JAR%" into "%TMP_DIR%"\...
 pushd "%TMP_DIR%"
   jar xf "..\%IJ_CORE_JAR%"
@@ -50,21 +69,34 @@ for %%f in ("%TWELVE_MONKEYS_DIR%\*.jar") do (
 del "%TMP_DIR%\META-INF\*.SF"  2>nul
 del "%TMP_DIR%\META-INF\*.DSA" 2>nul
 
-REM ─── 5) Overlay your newly compiled classes ───────────────────────────────
-echo Overlaying modified classes...
-xcopy /Y /E "%OUT_DIR%\*" "%TMP_DIR%\" >nul
+REM ─── 5) Overlay your newly compiled classes & resources ──────────────────
+echo Overlaying modified classes…
+robocopy "%OUT_DIR%" "%TMP_DIR%" /E /NFL /NDL /NJH /NJS >nul
 
-REM ─── Copy resources needed at runtime ────────────────────────────────────
-if not exist "%TMP_DIR%\images" mkdir "%TMP_DIR%\images"
-copy images\microscope.gif "%TMP_DIR%\images\" >nul
-copy images\about.jpg "%TMP_DIR%\images\" >nul
-copy IJ_Props.txt "%TMP_DIR%\" >nul
-xcopy /Y /E "macros" "%TMP_DIR%\macros\" >nul
+REM optional images
+if exist "images\microscope.gif" (
+    if not exist "%TMP_DIR%\images" mkdir "%TMP_DIR%\images"
+    copy "images\microscope.gif" "%TMP_DIR%\images\" >nul
+)
+if exist "images\about.jpg" (
+    if not exist "%TMP_DIR%\images" mkdir "%TMP_DIR%\images"
+    copy "images\about.jpg" "%TMP_DIR%\images\" >nul
+)
+
+REM IJ_Props.txt (optional)
+if exist "IJ_Props.txt" copy "IJ_Props.txt" "%TMP_DIR%\" >nul
+
+REM macros folder (optional)
+if exist "macros" (
+    robocopy "macros" "%TMP_DIR%\macros" /E /NFL /NDL /NJH /NJS >nul
+)
+
+REM extra plugin stubs (optional)
 if not exist "%TMP_DIR%\ij\plugin" mkdir "%TMP_DIR%\ij\plugin"
-copy plugins\MacAdapter.class "%TMP_DIR%\ij\plugin\" >nul
-copy plugins\MacAdapter9.class "%TMP_DIR%\ij\plugin\" >nul
+if exist "plugins\MacAdapter.class"  copy "plugins\MacAdapter.class"  "%TMP_DIR%\ij\plugin\" >nul
+if exist "plugins\MacAdapter9.class" copy "plugins\MacAdapter9.class" "%TMP_DIR%\ij\plugin\" >nul
 
-REM ─── 6) Package everything into the fat JAR ──────────────────────────────
+REM ─── 6) Package into fat JAR ─────────────────────────────────────────────
 echo Packaging "%FAT_JAR%" with resources and classes...
 jar cfm "%FAT_JAR%" manifest.txt -C "%TMP_DIR%" . || (
   echo.
@@ -73,12 +105,12 @@ jar cfm "%FAT_JAR%" manifest.txt -C "%TMP_DIR%" . || (
   exit /b 1
 )
 
-REM ─── 7) Cleanup temporary folder ────────────────────────────────────────
+REM ─── 7) Cleanup ────────────────────────────────────────────────────────────
 rd /s /q "%TMP_DIR%"
 
 echo.
 echo Build complete!
-echo You can now double-click or run:
+echo You can now run:
 echo     java -jar "%FAT_JAR%"
 pause
 

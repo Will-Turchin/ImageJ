@@ -1,13 +1,36 @@
 @echo off
-set CP=.;ij.jar;ij\images
+setlocal EnableDelayedExpansion
 
-rem -- Compile all ij source files
-javac -source 8 -target 8 -Xlint:none -cp "%CP%" ij\gui\Toolbar.java
+rem — where twelvemonkeys jars live
+set "TWELVE_MONKEYS_DIR=twelvemonkeysjars"
 
-rem -- NEW: compile the startup plug-in -----------------------
-rem javac -Xlint:none -cp "%CP%" plugins\Default1440DPI.java
+rem — build the compile-time classpath
+set "CP=.;ij.jar;ij\images"
+for %%f in ("%TWELVE_MONKEYS_DIR%\*.jar") do (
+    set "CP=!CP!;%%~f"
+)
 
-jar cf ij.jar ij
+echo Using class-path:
+echo   %CP%
+echo.
 
-rem -- launch -------------------------------------------------
-java -cp "%CP%" ij.ImageJ
+rem — compile only Toolbar.java into out\
+if not exist out md out
+javac -encoding UTF-8 -cp "%CP%" -d out ij\gui\Toolbar.java || (
+  echo *** Compilation failed
+  pause
+  exit /b 1
+)
+
+rem — update ij.jar with the newly compiled class
+jar uf ij.jar -C out ij/gui/Toolbar.class
+
+rem — now run, preferring out\ over ij.jar
+set "RUN_CP=out;ij\images;ij.jar;"
+for %%f in ("%TWELVE_MONKEYS_DIR%\*.jar") do (
+    set "RUN_CP=!RUN_CP!;%%~f"
+)
+
+echo Launching with:
+echo   %RUN_CP%
+java -cp "%RUN_CP%" ij.ImageJ
