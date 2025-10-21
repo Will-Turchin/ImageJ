@@ -1,4 +1,10 @@
-[![](https://github.com/imagej/ImageJ/actions/workflows/build-main.yml/badge.svg)](https://github.com/imagej/ImageJ/actions/workflows/build-main.yml)
+# Project Description
+This repository contains a customized ImageJ build used at **Raven Biosystems LLC** for streamlining high-resolution image analysis and mask generation. The modifications improve workflow efficiency and reduce the number of manual steps required to prepare images for downstream processing.
+
+Key enhancements include:
+- A simplified user interface designed for rapid image review and masking
+- Reduced technical overhead for non-expert ImageJ users
+- Additional masking tools and button-based actions for selecting and isolating regions of interest
 
 # ImageJ
 
